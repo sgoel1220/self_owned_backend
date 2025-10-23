@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  fastapi-app:
+    build: .
+    container_name: ai-script-generator
+    ports:
+      - "5000:5000"
+    environment:
+      # Flask/FastAPI configuration
+      - FLASK_HOST=0.0.0.0
+      - FLASK_PORT=5000
+      - FLASK_DEBUG=false
+      
+      # Supabase configuration (set via environment variables)
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - SUPABASE_TABLE=${SUPABASE_TABLE:-youtube_scripts}
+      - SUPABASE_STORAGE_BUCKET=${SUPABASE_STORAGE_BUCKET:-youtube-automation}
+      
+      # OpenRouter API configuration
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - OPENROUTER_BASE_URL=${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1/chat/completions}
+      
+      # Hugging Face configuration
+      - HUGGINGFACE_API_KEY=${HUGGINGFACE_API_KEY}
+      - HUGGINGFACE_IMAGE_URL=${HUGGINGFACE_IMAGE_URL:-https://router.huggingface.co/nebius/v1/images/generations}
+      - HUGGINGFACE_MODEL=${HUGGINGFACE_MODEL:-black-forest-labs/flux-schnell}
+      
+      # AI Model configuration
+      - PRIMARY_MODEL=${PRIMARY_MODEL:-google/gemini-2.0-flash-exp:free}
+      - FALLBACK_MODEL=${FALLBACK_MODEL:-openai/gpt-3.5-turbo}
+      
+      # Processing configuration
+      - BATCH_SIZE=${BATCH_SIZE:-5}
+      - MAX_RETRIES=${MAX_RETRIES:-3}
+      - TIMEOUT_SECONDS=${TIMEOUT_SECONDS:-60}
+    
+    restart: unless-stopped
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

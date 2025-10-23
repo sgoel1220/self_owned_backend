@@ -72,6 +72,7 @@ class Config(BaseSettings):
     DEFAULT_MASK_URL: str = "https://pksxiitjqxyyhnyzssei.supabase.co/storage/v1/object/public/youtube-automation/mask/mask.jpg"
     DEFAULT_CHARACTER_1_URL: str = "https://pksxiitjqxyyhnyzssei.supabase.co/storage/v1/object/public/youtube-automation/characters/Tradgirl.png"
     DEFAULT_CHARACTER_2_URL: str = "https://pksxiitjqxyyhnyzssei.supabase.co/storage/v1/object/public/youtube-automation/characters/Chad.png"
+    DEFAULT_AUDIO_URL: str = "https://pksxiitjqxyyhnyzssei.supabase.co/storage/v1/object/public/youtube-automation/audio/suspense_dark.mp3"
     
     model_config = SettingsConfigDict(
         env_file='.env',
@@ -1497,6 +1498,8 @@ class VideoGenerator:
             background_audio = row.get('background_audio_url')  # Assuming this column exists
             mask_image = config.DEFAULT_MASK_URL
             font_url = config.DEFAULT_FONT_URL
+            if background_audio is None or background_audio == "":
+                background_audio = config.DEFAULT_AUDIO_URL
             
             # Download resources
             resources = self._download_resources(
