@@ -1,106 +1,26 @@
-"""
-Video Generation Module - Modularized and Clean
-Generates cinematic horror/mystery short videos with dialogue, characters, and effects
-Version: 2.0.0 (Refactored with Optimized Image Processing)
-"""
+"""Video processing, including resource downloading and image manipulation"""
 
 import os
+import logging
 import tempfile
 import gc
 import re
 import io
-from pathlib import Path
 from typing import List, Optional, Tuple
-from datetime import datetime
 
-import numpy as np
 import requests
+import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageChops, ImageEnhance
-from pydantic import BaseModel, Field, HttpUrl, field_validator
 from moviepy.video.VideoClip import ImageClip
 from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
 from moviepy.audio.io.AudioFileClip import AudioFileClip
 
+from config import config
+from exceptions import (
+    ResourceDownloadError, VideoGenerationError, AudioProcessingError
+)
 
-# ============================================================================
-# PYDANTIC MODELS
-# ============================================================================
-
-class DialogueLine(BaseModel):
-    """Single line of dialogue with character identifier"""
-    character: str = Field(..., description="Character identifier (character_1 or character_2)")
-    dialogue: str = Field(..., min_length=1, description="Dialogue text")
-    
-    @field_validator('character')
-    @classmethod
-    def validate_character(cls, v: str) -> str:
-        if v not in ['character_1', 'character_2']:
-            raise ValueError('character must be either "character_1" or "character_2"')
-        return v
-
-
-class ScriptData(BaseModel):
-    """Script containing dialogue lines"""
-    script: List[DialogueLine] = Field(..., min_items=1, description="List of dialogue lines")
-
-
-class VideoGenerationRequest(BaseModel):
-    """Request model for video generation"""
-    vid_id: str = Field(..., description="Unique video identifier")
-    script: ScriptData = Field(..., description="Script with dialogue lines")
-    
-    character_1: str = Field(..., description="URL to character 1 image")
-    character_2: str = Field(..., description="URL to character 2 image")
-    background_image: str = Field(..., description="URL to background image")
-    
-    incident_image_1: Optional[str] = Field(None, description="URL to first incident image")
-    incident_image_2: Optional[str] = Field(None, description="URL to second incident image")
-    incident_image_3: Optional[str] = Field(None, description="URL to third incident image")
-    
-    background_audio: Optional[str] = Field(None, description="URL to background audio file")
-    mask_image: Optional[str] = Field(None, description="URL to film grain mask image")
-    font: Optional[str] = Field(None, description="URL to custom font file")  # Changed from font_url to font
-    
-    # Video configuration
-    canvas_width: int = Field(default=720, description="Video width in pixels")
-    canvas_height: int = Field(default=1280, description="Video height in pixels")
-    fps: int = Field(default=24, ge=15, le=60, description="Frames per second")
-    scene_duration: float = Field(default=2.0, ge=1.0, le=5.0, description="Duration of each scene in seconds")
-    font_size: int = Field(default=36, ge=20, le=72, description="Font size for dialogue text")
-
-
-class VideoGenerationResponse(BaseModel):
-    """Response model for video generation"""
-    success: bool
-    video_bytes: Optional[bytes] = None
-    video_size_mb: Optional[float] = None
-    duration_seconds: Optional[float] = None
-    error: Optional[str] = None
-    timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
-
-
-# ============================================================================
-# EXCEPTIONS
-# ============================================================================
-
-class ResourceDownloadError(Exception):
-    """Exception raised when resource download fails"""
-    pass
-
-
-class VideoGenerationError(Exception):
-    """Exception raised when video generation fails"""
-    pass
-
-
-class AudioProcessingError(Exception):
-    """Exception raised when audio processing fails"""
-    pass
-
-
-# ============================================================================
-# RESOURCE DOWNLOADER
-# ============================================================================
+logger = logging.getLogger(__name__)
 
 class ResourceDownloader:
     """Handles downloading of images, audio, and fonts from various sources"""
@@ -119,6 +39,7 @@ class ResourceDownloader:
             r'id=([a-zA-Z0-9_-]+)',
             r'/d/([a-zA-Z0-9_-]+)'
         ]
+        
         for pattern in patterns:
             match = re.search(pattern, url)
             if match:
@@ -159,6 +80,7 @@ class ResourceDownloader:
                     # Look for confirmation link
                     confirm_pattern = r'href="(/uc\?export=download[^"]*)"'
                     confirm_match = re.search(confirm_pattern, html_content)
+                    
                     if confirm_match:
                         confirm_url = "https://drive.google.com" + confirm_match.group(1).replace('&amp;', '&')
                         response = self.session.get(confirm_url, headers=self.headers, stream=True, timeout=30)
@@ -197,8 +119,8 @@ class ResourceDownloader:
             for chunk in response.iter_content(8192):
                 if chunk:
                     image_buffer.write(chunk)
-            image_buffer.seek(0)
             
+            image_buffer.seek(0)
             img = Image.open(image_buffer)
             
             # Apply appropriate sizing based on image type
@@ -312,11 +234,6 @@ class ResourceDownloader:
     def close(self):
         """Close the session"""
         self.session.close()
-
-
-# ============================================================================
-# IMAGE PROCESSOR
-# ============================================================================
 
 class ImageProcessor:
     """Handles image processing and manipulation"""
@@ -497,6 +414,7 @@ class ImageProcessor:
                 else:
                     lines.append(word)
                     line = ""
+        
         if line:
             lines.append(line.strip())
         
@@ -549,11 +467,6 @@ class ImageProcessor:
         
         return img
 
-
-# ============================================================================
-# VIDEO GENERATOR
-# ============================================================================
-
 class VideoGenerator:
     """Main video generation class"""
     
@@ -562,100 +475,179 @@ class VideoGenerator:
         self.processor = ImageProcessor()
         self.temp_files = []
     
-    def generate_video(self, request: VideoGenerationRequest) -> VideoGenerationResponse:
-        """Generate video from request data"""
+    def generate_video_from_db_row(self, row: dict) -> Tuple[bytes, float]:
+        """
+        Generate video from database row data
+        
+        Args:
+            row: Database row containing video generation parameters
+        
+        Returns:
+            Tuple of (video_bytes, duration)
+        
+        Raises:
+            VideoGenerationError: If video generation fails
+        """
         try:
+            record_id = row.get('id')
             print(f"\n{'='*60}")
-            print(f"Starting video generation for: {request.vid_id}")
+            print(f"Starting video generation for record ID: {record_id}")
             print(f"{'='*60}\n")
             
+            # Extract parameters from row with defaults
+            canvas_width = 720
+            canvas_height = 1280
+            fps = 24
+            scene_duration = 2.0
+            font_size = 36
+            
+            # Get required fields
+            ai_script = row.get('ai_script')
+            if not ai_script:
+                raise VideoGenerationError("ai_script is required")
+            
+            # Convert script format from character1/character2 to character_1/character_2
+            script_lines = []
+            if isinstance(ai_script, list):
+                for line in ai_script:
+                    char = line.get('character', '')
+                    # Normalize character names
+                    if char.lower() in ['character1', 'character_1']:
+                        char = 'character_1'
+                    elif char.lower() in ['character2', 'character_2']:
+                        char = 'character_2'
+                    
+                    script_lines.append({
+                        'character': char,
+                        'dialogue': line.get('dialogue', '')
+                    })
+            
+            background_image_url = row.get('background_image_url')
+            if not background_image_url:
+                raise VideoGenerationError("background_image_url is required")
+            
+            # Get optional fields with defaults
+            character_1_url = row.get('character_a') or config.DEFAULT_CHARACTER_1_URL
+            character_2_url = row.get('character_b') or config.DEFAULT_CHARACTER_2_URL
+            
+            incident_image_1 = row.get('incident_image_1')
+            incident_image_2 = row.get('incident_image_2')
+            incident_image_3 = row.get('incident_image_3')
+            
+            background_audio = row.get('background_audio_url')  # Assuming this column exists
+            mask_image = config.DEFAULT_MASK_URL
+            font_url = config.DEFAULT_FONT_URL
+            if background_audio is None or background_audio == "":
+                background_audio = config.DEFAULT_AUDIO_URL
+            
             # Download resources
-            resources = self._download_resources(request)
+            resources = self._download_resources(
+                character_1_url,
+                character_2_url,
+                background_image_url,
+                incident_image_1,
+                incident_image_2,
+                incident_image_3,
+                background_audio,
+                mask_image,
+                font_url,
+                font_size
+            )
             
             # Create video
-            video_bytes, duration = self._create_video(request, resources)
-            
-            # Calculate size
-            size_mb = len(video_bytes) / (1024 * 1024)
+            video_bytes, duration = self._create_video(
+                script_lines,
+                resources,
+                canvas_width,
+                canvas_height,
+                fps,
+                scene_duration
+            )
             
             print(f"\n{'='*60}")
             print(f"✅ Video generated successfully!")
-            print(f"   Size: {size_mb:.2f}MB")
+            print(f"   Size: {len(video_bytes)/(1024*1024):.2f}MB")
             print(f"   Duration: {duration:.1f}s")
             print(f"{'='*60}\n")
             
-            return VideoGenerationResponse(
-                success=True,
-                video_bytes=video_bytes,
-                video_size_mb=round(size_mb, 2),
-                duration_seconds=duration
-            )
+            return video_bytes, duration
             
         except Exception as e:
             print(f"\n{'='*60}")
             print(f"❌ Video generation failed: {str(e)}")
             print(f"{'='*60}\n")
-            return VideoGenerationResponse(
-                success=False,
-                error=str(e)
-            )
+            raise VideoGenerationError(str(e))
         finally:
             self._cleanup()
     
-    def _download_resources(self, request: VideoGenerationRequest) -> dict:
-        """Download all required resources with appropriate sizing"""
+    def _download_resources(
+        self,
+        character_1_url: str,
+        character_2_url: str,
+        background_url: str,
+        incident_1_url: Optional[str],
+        incident_2_url: Optional[str],
+        incident_3_url: Optional[str],
+        audio_url: Optional[str],
+        mask_url: str,
+        font_url: str,
+        font_size: int
+    ) -> dict:
+        """Download all required resources"""
         print("📥 Downloading resources...\n")
         
         resources = {}
         
         # Download font
-        if request.font:
-            font, temp_path = self.downloader.download_font(request.font, request.font_size)
-            if temp_path:
-                self.temp_files.append(temp_path)
-            resources['font'] = font
-        else:
-            resources['font'] = ImageFont.load_default()
-            print("Using default font")
+        font, temp_path = self.downloader.download_font(font_url, font_size)
+        if temp_path:
+            self.temp_files.append(temp_path)
+        resources['font'] = font
         
-        # Download images with specific types for proper sizing
+        # Download images
         print("Downloading character images...")
-        resources['char1'] = self.downloader.download_image(request.character_1, "character")
-        resources['char2'] = self.downloader.download_image(request.character_2, "character")
+        resources['char1'] = self.downloader.download_image(character_1_url, "character")
+        resources['char2'] = self.downloader.download_image(character_2_url, "character")
         
         print("Downloading background image...")
-        resources['background'] = self.downloader.download_image(request.background_image, "background")
+        resources['background'] = self.downloader.download_image(background_url, "background")
         
         # Download incident images
         print("Downloading incident images...")
-        for i, img_url in enumerate([request.incident_image_1, request.incident_image_2, request.incident_image_3], 1):
+        for i, img_url in enumerate([incident_1_url, incident_2_url, incident_3_url], 1):
             if img_url:
                 resources[f'incident_{i}'] = self.downloader.download_image(img_url, "incident")
         
         # Download mask
-        if request.mask_image:
-            print("Downloading mask image...")
-            resources['mask'] = self.downloader.download_image(request.mask_image, "mask")
+        print("Downloading mask image...")
+        resources['mask'] = self.downloader.download_image(mask_url, "mask")
         
         # Download audio
-        if request.background_audio:
+        if audio_url:
             print("Downloading background audio...")
-            audio_path = self.downloader.download_audio(request.background_audio)
+            audio_path = self.downloader.download_audio(audio_url)
             self.temp_files.append(audio_path)
             resources['audio_path'] = audio_path
         
         print("\n✅ All resources downloaded successfully\n")
         return resources
     
-    def _create_video(self, request: VideoGenerationRequest, resources: dict) -> Tuple[bytes, float]:
+    def _create_video(
+        self,
+        script: List[dict],
+        resources: dict,
+        canvas_width: int,
+        canvas_height: int,
+        fps: int,
+        scene_duration: float
+    ) -> Tuple[bytes, float]:
         """Create video from resources"""
-        canvas_size = (request.canvas_width, request.canvas_height)
-        script = request.script.script
+        canvas_size = (canvas_width, canvas_height)
         
         # Calculate duration
         num_scenes = len(script)
         num_incidents = sum([1 for k in resources if k.startswith('incident_')])
-        video_duration = (num_scenes + num_incidents) * request.scene_duration
+        video_duration = (num_scenes + num_incidents) * scene_duration
         
         print(f"🎬 Creating video composition:")
         print(f"   Canvas: {canvas_size[0]}x{canvas_size[1]}")
@@ -668,6 +660,7 @@ class VideoGenerator:
         background_processed = self.processor.resize_background_image(resources['background'], canvas_size)
         background_array = np.array(background_processed)
         background_clip = ImageClip(background_array).with_duration(video_duration).with_position("center")
+        
         clips = [background_clip]
         
         # Process character images
@@ -678,8 +671,10 @@ class VideoGenerator:
         # Create dialogue scenes
         print(f"\nCreating {num_scenes} dialogue scenes...")
         start_time = 0
-        for idx, dialogue in enumerate(script, 1):
-            is_char1 = dialogue.character == 'character_1'
+        
+        for idx, dialogue_dict in enumerate(script, 1):
+            is_char1 = dialogue_dict['character'] == 'character_1'
+            dialogue_text = dialogue_dict['dialogue']
             
             # Select character
             if is_char1:
@@ -689,10 +684,11 @@ class VideoGenerator:
             
             # Create character clip
             char_array = np.array(char_img)
-            char_clip = ImageClip(char_array).with_duration(request.scene_duration).with_start(start_time)
+            char_clip = ImageClip(char_array).with_duration(scene_duration).with_start(start_time)
             
             # Position character
             char_y_position = canvas_size[1] - char_img.height - 100
+            
             if is_char1:
                 char_clip = char_clip.with_position((50, char_y_position))
             else:
@@ -700,12 +696,13 @@ class VideoGenerator:
             
             # Generate text overlay
             text_img = self.processor.generate_text_image(
-                dialogue.dialogue,
+                dialogue_text,
                 resources['font'],
                 size=(canvas_size[0] - 40, 200)
             )
+            
             text_array = np.array(text_img)
-            text_clip = ImageClip(text_array).with_duration(request.scene_duration).with_start(start_time).with_position(('center', 150))
+            text_clip = ImageClip(text_array).with_duration(scene_duration).with_start(start_time).with_position(('center', 150))
             
             clips.extend([char_clip, text_clip])
             
@@ -713,15 +710,17 @@ class VideoGenerator:
             text_img.close()
             if not is_char1:
                 char_img.close()
+            
             del text_array, char_array
             
-            print(f"   Scene {idx}/{num_scenes}: {dialogue.character} - \"{dialogue.dialogue[:30]}...\"")
-            start_time += request.scene_duration
+            print(f"   Scene {idx}/{num_scenes}: {dialogue_dict['character']} - \"{dialogue_text[:30]}...\"")
+            start_time += scene_duration
         
         # Add incident scenes
         if num_incidents > 0:
             print(f"\nCreating {num_incidents} incident scenes...")
             mask = resources.get('mask')
+            
             for i in range(1, 4):
                 if f'incident_{i}' in resources:
                     incident_img = resources[f'incident_{i}']
@@ -734,14 +733,15 @@ class VideoGenerator:
                         incident_processed = self.processor.apply_film_grain(incident_processed, mask)
                     
                     incident_array = np.array(incident_processed)
-                    incident_clip = ImageClip(incident_array).with_duration(request.scene_duration).with_start(start_time).with_position('center')
+                    incident_clip = ImageClip(incident_array).with_duration(scene_duration).with_start(start_time).with_position('center')
+                    
                     clips.append(incident_clip)
                     
                     incident_processed.close()
                     del incident_array
                     
                     print(f"   Incident scene {i}")
-                    start_time += request.scene_duration
+                    start_time += scene_duration
         
         # Cleanup character images
         char1_processed.close()
@@ -750,6 +750,7 @@ class VideoGenerator:
         resources['char1'].close()
         resources['char2'].close()
         resources['background'].close()
+        
         del background_array
         
         # Composite video
@@ -775,12 +776,11 @@ class VideoGenerator:
         print("\n💾 Exporting video (this may take a few minutes)...")
         with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as temp_file:
             temp_filename = temp_file.name
-        
-        self.temp_files.append(temp_filename)
+            self.temp_files.append(temp_filename)
         
         video.write_videofile(
             temp_filename,
-            fps=request.fps,
+            fps=fps,
             codec="libx264",
             audio_codec="aac",
             temp_audiofile=tempfile.mktemp(suffix='.m4a'),
@@ -799,14 +799,16 @@ class VideoGenerator:
         video.close()
         if 'audio_path' in resources:
             audio_clip.close()
+        
         gc.collect()
         
         return video_bytes, video_duration
     
-    def _cleanup(self):
+    def _cleanup():
         """Clean up temporary files"""
         print("\n🧹 Cleaning up temporary files...")
         cleaned = 0
+        
         for temp_file in self.temp_files:
             if os.path.exists(temp_file):
                 try:
@@ -820,73 +822,3 @@ class VideoGenerator:
         
         self.temp_files.clear()
         self.downloader.close()
-
-
-# ============================================================================
-# CONVENIENCE FUNCTIONS
-# ============================================================================
-
-def generate_video_from_dict(data: dict) -> VideoGenerationResponse:
-    """Generate video from dictionary data"""
-    try:
-        request = VideoGenerationRequest(**data)
-        generator = VideoGenerator()
-        return generator.generate_video(request)
-    except Exception as e:
-        return VideoGenerationResponse(
-            success=False,
-            error=f"Invalid request data: {str(e)}"
-        )
-
-
-def generate_video_from_request(request: VideoGenerationRequest) -> VideoGenerationResponse:
-    """Generate video from Pydantic request model"""
-    generator = VideoGenerator()
-    return generator.generate_video(request)
-
-
-# ============================================================================
-# EXAMPLE USAGE
-# ============================================================================
-
-if __name__ == '__main__':
-    # Example with Supabase URLs
-    input_data = {
-        "vid_id": "recOa9A6Lh9e6uhGQ",
-        "script": {
-            "script": [
-                {"character": "character_1", "dialogue": "That sound... was it real?"},
-                {"character": "character_2", "dialogue": "As real as the silence now."},
-                {"character": "character_1", "dialogue": "It felt like tearing metal."},
-                {"character": "character_2", "dialogue": "Or something breaking apart."},
-                {"character": "character_1", "dialogue": "Where are the others?"},
-                {"character": "character_2", "dialogue": "They went where we can't follow."},
-                {"character": "character_1", "dialogue": "How did we get here?"},
-                {"character": "character_2", "dialogue": "The jungle brought us, but it won't let us leave."}
-            ]
-        },
-        "character_1": "https://pksxiitjqxyyhnyzssei.supabase.co/storage/v1/object/public/youtube-automation/characters/Tradgirl.png",
-        "character_2": "https://pksxiitjqxyyhnyzssei.supabase.co/storage/v1/object/public/youtube-automation/characters/Chad.png",
-        "background_image": "https://pksxiitjqxyyhnyzssei.supabase.co/storage/v1/object/public/youtube-automation/background/background_4_1761132994.png",
-        "incident_image_1": "https://pksxiitjqxyyhnyzssei.supabase.co/storage/v1/object/public/youtube-automation/background/background_4_1761132994.png",
-        "incident_image_2": "https://pksxiitjqxyyhnyzssei.supabase.co/storage/v1/object/public/youtube-automation/background/background_4_1761132994.png",
-        "incident_image_3": "https://pksxiitjqxyyhnyzssei.supabase.co/storage/v1/object/public/youtube-automation/background/background_4_1761132994.png",
-        "background_audio": "https://pksxiitjqxyyhnyzssei.supabase.co/storage/v1/object/public/youtube-automation/audio/suspense_dark.mp3",
-        "mask_image": "https://pksxiitjqxyyhnyzssei.supabase.co/storage/v1/object/public/youtube-automation/mask/mask.jpg",
-        "font": "https://pksxiitjqxyyhnyzssei.supabase.co/storage/v1/object/public/youtube-automation/font/Inter-VariableFont.ttf",
-    }
-    
-    # Generate video
-    result = generate_video_from_dict(input_data)
-    
-    if result.success:
-        print(f"✅ Video generated successfully!")
-        print(f"   Size: {result.video_size_mb}MB")
-        print(f"   Duration: {result.duration_seconds}s")
-        
-        # Save to file (example)
-        with open('output_video.mp4', 'wb') as f:
-            f.write(result.video_bytes)
-        print("   Saved to: output_video.mp4")
-    else:
-        print(f"❌ Video generation failed: {result.error}")
