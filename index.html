@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Video Content Automation Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        border: "hsl(214.3 31.8% 91.4%)",
+                        input: "hsl(214.3 31.8% 91.4%)",
+                        ring: "hsl(222.2 84% 4.9%)",
+                        background: "hsl(0 0% 100%)",
+                        foreground: "hsl(222.2 84% 4.9%)",
+                        primary: {
+                            DEFAULT: "hsl(222.2 47.4% 11.2%)",
+                            foreground: "hsl(210 40% 98%)",
+                        },
+                        secondary: {
+                            DEFAULT: "hsl(210 40% 96.1%)",
+                            foreground: "hsl(222.2 47.4% 11.2%)",
+                        },
+                        destructive: {
+                            DEFAULT: "hsl(0 84.2% 60.2%)",
+                            foreground: "hsl(210 40% 98%)",
+                        },
+                        muted: {
+                            DEFAULT: "hsl(210 40% 96.1%)",
+                            foreground: "hsl(215.4 16.3% 46.9%)",
+                        },
+                        accent: {
+                            DEFAULT: "hsl(210 40% 96.1%)",
+                            foreground: "hsl(222.2 47.4% 11.2%)",
+                        },
+                        success: {
+                            DEFAULT: "hsl(142.1 76.2% 36.3%)",
+                            foreground: "hsl(355.7 100% 97.3%)",
+                        },
+                    },
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer base {
+            * {
+                @apply border-border;
+            }
+            body {
+                @apply bg-background text-foreground;
+            }
+        }
+        
+        @layer components {
+            .btn {
+                @apply inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50;
+            }
+            
+            .btn-primary {
+                @apply bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2;
+            }
+            
+            .btn-secondary {
+                @apply bg-secondary text-secondary-foreground hover:bg-secondary/80 px-4 py-2;
+            }
+            
+            .btn-destructive {
+                @apply bg-destructive text-destructive-foreground hover:bg-destructive/90 px-4 py-2;
+            }
+            
+            .card {
+                @apply rounded-lg border bg-white shadow-sm;
+            }
+            
+            .input {
+                @apply flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+            }
+            
+            .textarea {
+                @apply flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+            }
+            
+            .badge {
+                @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2;
+            }
+            
+            .badge-success {
+                @apply bg-success text-success-foreground;
+            }
+            
+            .badge-destructive {
+                @apply bg-destructive text-destructive-foreground;
+            }
+            
+            .badge-secondary {
+                @apply bg-secondary text-secondary-foreground;
+            }
+            
+            @keyframes spin {
+                to { transform: rotate(360deg); }
+            }
+            
+            .animate-spin {
+                animation: spin 1s linear infinite;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-slate-50">
+    <!-- Header -->
+    <header class="border-b bg-white">
+        <div class="container mx-auto px-4 py-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-2xl font-bold">🎬 AI Video Automation</h1>
+                    <p class="text-sm text-muted-foreground">Generate viral horror/mystery content - v4.0.0</p>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="checkHealth()" class="btn btn-secondary">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
+                        </svg>
+                        Health Check
+                    </button>
+                    <button onclick="viewApiDocs()" class="btn btn-primary">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        API Docs
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-8">
+        <!-- API Configuration -->
+        <div class="card p-6 mb-6">
+            <h2 class="text-lg font-semibold mb-4">⚙️ API Configuration</h2>
+            <div class="flex gap-4 items-end">
+                <div class="flex-1">
+                    <label class="block text-sm font-medium mb-2">API Base URL</label>
+                    <input type="text" id="apiBaseUrl" class="input" value="http://localhost:5000" placeholder="http://localhost:5000">
+                </div>
+                <button onclick="testConnection()" class="btn btn-primary">Test Connection</button>
+            </div>
+            <div id="connectionStatus" class="mt-3"></div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="mb-6">
+            <div class="border-b border-gray-200">
+                <nav class="-mb-px flex space-x-8">
+                    <button onclick="switchTab('save-story')" id="tab-save-story" class="tab-btn border-b-2 border-primary py-4 px-1 text-sm font-medium text-primary">
+                        📝 Save Story
+                    </button>
+                    <button onclick="switchTab('generate-script')" id="tab-generate-script" class="tab-btn border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-500 hover:border-gray-300 hover:text-gray-700">
+                        🎭 Generate Script
+                    </button>
+                    <button onclick="switchTab('batch-operations')" id="tab-batch-operations" class="tab-btn border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-500 hover:border-gray-300 hover:text-gray-700">
+                        🚀 Batch Operations
+                    </button>
+                    <button onclick="switchTab('generate-video')" id="tab-generate-video" class="tab-btn border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-500 hover:border-gray-300 hover:text-gray-700">
+                        🎥 Generate Videos
+                    </button>
+                </nav>
+            </div>
+        </div>
+
+        <!-- Tab Content: Save Story -->
+        <div id="content-save-story" class="tab-content">
+            <div class="card p-6">
+                <h2 class="text-xl font-semibold mb-4">📝 Save Story Summary</h2>
+                <p class="text-sm text-muted-foreground mb-4">Save a story to the database. This will create a new record that can be processed later.</p>
+                
+                <div class="bg-blue-50 border border-blue-200 rounded-md p-4 mb-4">
+                    <div class="flex">
+                        <svg class="w-5 h-5 text-blue-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+                        </svg>
+                        <div>
+                            <h3 class="text-sm font-medium text-blue-800">Endpoint: POST /save-story</h3>
+                            <p class="text-sm text-blue-700 mt-1">Saves article_summary (min 10 characters) to database</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Story Text * <span class="text-xs text-muted-foreground">(minimum 10 characters)</span></label>
+                        <textarea id="saveStoryText" class="textarea" rows="8" placeholder="Enter your horror/mystery story here... (e.g., A chilling tale about mysterious disappearances...)"></textarea>
+                        <p class="text-xs text-muted-foreground mt-1">Character count: <span id="saveStoryCharCount">0</span></p>
+                    </div>
+                    
+                    <button onclick="saveStory()" id="saveStoryBtn" class="btn btn-primary w-full">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path>
+                        </svg>
+                        Save Story
+                    </button>
+                </div>
+                
+                <div id="saveStoryResult" class="mt-4"></div>
+            </div>
+        </div>
+
+        <!-- Tab Content: Generate Script -->
+        <div id="content-generate-script" class="tab-content hidden">
+            <div class="card p-6">
+                <h2 class="text-xl font-semibold mb-4">🎭 Generate Script</h2>
+                <p class="text-sm text-muted-foreground mb-4">Generate a cryptic horror/mystery script from your story.</p>
+                
+                <div class="bg-blue-50 border border-blue-200 rounded-md p-4 mb-4">
+                    <div class="flex">
+                        <svg class="w-5 h-5 text-blue-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+                        </svg>
+                        <div>
+                            <h3 class="text-sm font-medium text-blue-800">Endpoint: POST /generate-script</h3>
+                            <p class="text-sm text-blue-700 mt-1">Generates dialogue array with character/dialogue pairs. Script is NOT saved to DB (only story summary if save_to_db=true)</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Story Input * <span class="text-xs text-muted-foreground">(minimum 10 characters)</span></label>
+                        <textarea id="scriptStoryText" class="textarea" rows="8" placeholder="Enter your horror/mystery story... (e.g., A mysterious event occurred in an abandoned mansion on a dark night...)"></textarea>
+                        <p class="text-xs text-muted-foreground mt-1">Character count: <span id="scriptStoryCharCount">0</span></p>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Character A Name (Optional)</label>
+                            <input type="text" id="characterA" class="input" placeholder="character1" value="character1">
+                            <p class="text-xs text-muted-foreground mt-1">Default: character1</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Character B Name (Optional)</label>
+                            <input type="text" id="characterB" class="input" placeholder="character2" value="character2">
+                            <p class="text-xs text-muted-foreground mt-1">Default: character2</p>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center">
+                        <input type="checkbox" id="saveToDb" checked class="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary">
+                        <label for="saveToDb" class="ml-2 text-sm font-medium">Save story summary to database (default: true)</label>
+                    </div>
+                    
+                    <button onclick="generateScript()" id="generateScriptBtn" class="btn btn-primary w-full">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                        Generate Script
+                    </button>
+                </div>
+                
+                <div id="generateScriptResult" class="mt-4"></div>
+            </div>
+        </div>
+
+        <!-- Tab Content: Batch Operations -->
+        <div id="content-batch-operations" class="tab-content hidden">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Batch Generate Scripts -->
+                <div class="card p-6">
+                    <h3 class="text-lg font-semibold mb-3">📜 Batch Generate Scripts</h3>
+                    <p class="text-sm text-muted-foreground mb-4">Process all rows with empty ai_script field</p>
+                    <div class="bg-blue-50 border border-blue-200 rounded-md p-3 mb-4 text-xs">
+                        <p class="font-medium text-blue-800">POST /batch-generate-scripts</p>
+                        <p class="text-blue-700 mt-1">Query param: limit (optional integer)</p>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium mb-2">Limit (Optional)</label>
+                        <input type="number" id="batchScriptLimit" class="input" placeholder="Leave empty for all rows">
+                    </div>
+                    <button onclick="batchGenerateScripts()" id="batchScriptsBtn" class="btn btn-primary w-full">
+                        Generate Scripts
+                    </button>
+                    <div id="batchScriptsResult" class="mt-4"></div>
+                </div>
+
+                <!-- Batch Generate Background Prompts -->
+                <div class="card p-6">
+                    <h3 class="text-lg font-semibold mb-3">🖼️ Batch Generate Prompts</h3>
+                    <p class="text-sm text-muted-foreground mb-4">Generate background image prompts for rows with null background_image_prompt</p>
+                    <div class="bg-blue-50 border border-blue-200 rounded-md p-3 mb-4 text-xs">
+                        <p class="font-medium text-blue-800">POST /batch-generate-background-prompts</p>
+                        <p class="text-blue-700 mt-1">Query param: limit (optional integer)</p>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium mb-2">Limit (Optional)</label>
+                        <input type="number" id="batchPromptsLimit" class="input" placeholder="Leave empty for all rows">
+                    </div>
+                    <button onclick="batchGeneratePrompts()" id="batchPromptsBtn" class="btn btn-primary w-full">
+                        Generate Prompts
+                    </button>
+                    <div id="batchPromptsResult" class="mt-4"></div>
+                </div>
+
+                <!-- Batch Generate Background Images -->
+                <div class="card p-6">
+                    <h3 class="text-lg font-semibold mb-3">🎨 Batch Generate Images</h3>
+                    <p class="text-sm text-muted-foreground mb-4">Generate and upload background images for rows with prompts but no images</p>
+                    <div class="bg-blue-50 border border-blue-200 rounded-md p-3 mb-4 text-xs">
+                        <p class="font-medium text-blue-800">POST /batch-generate-background-images</p>
+                        <p class="text-blue-700 mt-1">Uploads to Supabase Storage</p>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium mb-2">Limit (Optional)</label>
+                        <input type="number" id="batchImagesLimit" class="input" placeholder="Leave empty for all rows">
+                    </div>
+                    <button onclick="batchGenerateImages()" id="batchImagesBtn" class="btn btn-primary w-full">
+                        Generate Images
+                    </button>
+                    <div id="batchImagesResult" class="mt-4"></div>
+                </div>
+
+                <!-- Batch Generate Videos -->
+                <div class="card p-6">
+                    <h3 class="text-lg font-semibold mb-3">🎬 Batch Generate Videos</h3>
+                    <p class="text-sm text-muted-foreground mb-4">Generate and upload videos (may take time)</p>
+                    <div class="bg-blue-50 border border-blue-200 rounded-md p-3 mb-4 text-xs">
+                        <p class="font-medium text-blue-800">POST /batch-generate-videos</p>
+                        <p class="text-blue-700 mt-1">Required: ai_script, background_image_url</p>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium mb-2">Limit (Optional)</label>
+                        <input type="number" id="batchVideosLimit" class="input" placeholder="Leave empty for all rows">
+                    </div>
+                    <button onclick="batchGenerateVideos()" id="batchVideosBtn" class="btn btn-destructive w-full">
+                        ⚠️ Generate Videos
+                    </button>
+                    <div id="batchVideosResult" class="mt-4"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab Content: Generate Video (Single) -->
+        <div id="content-generate-video" class="tab-content hidden">
+            <div class="card p-6">
+                <h2 class="text-xl font-semibold mb-4">🎥 Generate Single Video</h2>
+                <p class="text-sm text-muted-foreground mb-4">This will trigger batch video generation for eligible rows. For custom video generation, use the batch operations tab.</p>
+                
+                <div class="bg-yellow-50 border border-yellow-200 rounded-md p-4 mb-4">
+                    <div class="flex">
+                        <svg class="w-5 h-5 text-yellow-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                        </svg>
+                        <div>
+                            <h3 class="text-sm font-medium text-yellow-800">Video Generation Requirements</h3>
+                            <div class="mt-2 text-sm text-yellow-700">
+                                <ul class="list-disc list-inside space-y-1">
+                                    <li>Row must have <strong>ai_script</strong> (dialogue)</li>
+                                    <li>Row must have <strong>background_image_url</strong></li>
+                                    <li>Row must NOT have <strong>video_generated_url</strong></li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-2">Limit (Optional)</label>
+                    <input type="number" id="singleVideoLimit" class="input" value="1" placeholder="Number of videos to generate">
+                </div>
+                
+                <button onclick="generateVideos()" id="generateVideosBtn" class="btn btn-destructive w-full">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                    </svg>
+                    Generate Videos
+                </button>
+                
+                <div id="generateVideosResult" class="mt-4"></div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t bg-white mt-12">
+        <div class="container mx-auto px-4 py-6 text-center text-sm text-muted-foreground">
+            <p>AI Video Content Automation Dashboard v4.0.0 | OpenAPI 3.1.0</p>
+        </div>
+    </footer>
+
+    <script>
+        // Character counters
+        document.getElementById('saveStoryText').addEventListener('input', function() {
+            document.getElementById('saveStoryCharCount').textContent = this.value.length;
+        });
+        
+        document.getElementById('scriptStoryText').addEventListener('input', function() {
+            document.getElementById('scriptStoryCharCount').textContent = this.value.length;
+        });
+
+        // Get API base URL
+        function getApiUrl() {
+            return document.getElementById('apiBaseUrl').value.trim() || 'http://localhost:5000';
+        }
+
+        // View API docs
+        function viewApiDocs() {
+            const apiUrl = getApiUrl();
+            window.open(`${apiUrl}/docs`, '_blank');
+        }
+
+        // Tab Switching
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.add('hidden');
+            });
+            
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('border-primary', 'text-primary');
+                btn.classList.add('border-transparent', 'text-gray-500');
+            });
+            
+            document.getElementById('content-' + tabName).classList.remove('hidden');
+            
+            const activeTab = document.getElementById('tab-' + tabName);
+            activeTab.classList.add('border-primary', 'text-primary');
+            activeTab.classList.remove('border-transparent', 'text-gray-500');
+        }
+
+        // Show loading state
+        function showLoading(buttonId) {
+            const btn = document.getElementById(buttonId);
+            btn.disabled = true;
+            btn.innerHTML = '<svg class="animate-spin h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Processing...';
+        }
+
+        // Reset button state
+        function resetButton(buttonId, originalText) {
+            const btn = document.getElementById(buttonId);
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+
+        // Show result message
+        function showResult(containerId, success, message, data = null) {
+            const container = document.getElementById(containerId);
+            const statusClass = success ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800';
+            const icon = success ? '✅' : '❌';
+            
+            let html = `
+                <div class="${statusClass} border rounded-md p-4">
+                    <div class="flex">
+                        <span class="text-xl mr-2">${icon}</span>
+                        <div class="flex-1">
+                            <h4 class="font-medium">${success ? 'Success' : 'Error'}</h4>
+                            <p class="text-sm mt-1">${message}</p>
+            `;
+            
+            if (data) {
+                html += `<details class="mt-2"><summary class="text-xs font-medium cursor-pointer">View Response Data</summary><pre class="mt-2 text-xs bg-white bg-opacity-50 p-2 rounded overflow-auto max-h-96">${JSON.stringify(data, null, 2)}</pre></details>`;
+            }
+            
+            html += `
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            container.innerHTML = html;
+        }
+
+        // Health Check
+        async function checkHealth() {
+            const apiUrl = getApiUrl();
+            try {
+                const response = await fetch(`${apiUrl}/health`);
+                const data = await response.json();
+                alert(`API Status: ${data.status}\nTimestamp: ${data.timestamp}`);
+            } catch (error) {
+                alert(`Error: ${error.message}`);
+            }
+        }
+
+        // Test Connection
+        async function testConnection() {
+            const apiUrl = getApiUrl();
+            const statusDiv = document.getElementById('connectionStatus');
+            
+            try {
+                const response = await fetch(`${apiUrl}/health`);
+                const data = await response.json();
+                
+                if (data.status === 'healthy') {
+                    statusDiv.innerHTML = '<div class="bg-green-50 border border-green-200 text-green-800 rounded-md p-3 text-sm">✅ Connection successful! API is healthy.</div>';
+                } else {
+                    statusDiv.innerHTML = '<div class="bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-md p-3 text-sm">⚠️ API responded but status is not healthy.</div>';
+                }
+            } catch (error) {
+                statusDiv.innerHTML = `<div class="bg-red-50 border border-red-200 text-red-800 rounded-md p-3 text-sm">❌ Connection failed: ${error.message}</div>`;
+            }
+        }
+
+        // Save Story
+        async function saveStory() {
+            const storyText = document.getElementById('saveStoryText').value.trim();
+            
+            if (!storyText) {
+                alert('Please enter a story text');
+                return;
+            }
+            
+            if (storyText.length < 10) {
+                alert('Story text must be at least 10 characters long');
+                return;
+            }
+            
+            showLoading('saveStoryBtn');
+            
+            try {
+                const apiUrl = getApiUrl();
+                const response = await fetch(`${apiUrl}/save-story`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        article_summary: storyText
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    showResult('saveStoryResult', true, `Story saved successfully! Record ID: ${data.record_id}`, data);
+                    document.getElementById('saveStoryText').value = '';
+                    document.getElementById('saveStoryCharCount').textContent = '0';
+                } else {
+                    showResult('saveStoryResult', false, data.error || 'Failed to save story', data);
+                }
+            } catch (error) {
+                showResult('saveStoryResult', false, error.message);
+            } finally {
+                resetButton('saveStoryBtn', '<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>Save Story');
+            }
+        }
+
+        // Generate Script
+        async function generateScript() {
+            const storyText = document.getElementById('scriptStoryText').value.trim();
+            const characterA = document.getElementById('characterA').value.trim();
+            const characterB = document.getElementById('characterB').value.trim();
+            const saveToDb = document.getElementById('saveToDb').checked;
+            
+            if (!storyText) {
+                alert('Please enter a story text');
+                return;
+            }
+            
+            if (storyText.length < 10) {
+                alert('Story text must be at least 10 characters long');
+                return;
+            }
+            
+            showLoading('generateScriptBtn');
+            
+            try {
+                const apiUrl = getApiUrl();
+                const payload = {
+                    story_input: storyText,
+                    save_to_db: saveToDb
+                };
+                
+                if (characterA) payload.character_a = characterA;
+                if (characterB) payload.character_b = characterB;
+                
+                const response = await fetch(`${apiUrl}/generate-script`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload)
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    let message = 'Script generated successfully!';
+                    if (data.record_id) {
+                        message += ` Record ID: ${data.record_id}`;
+                    }
+                    if (data.script) {
+                        message += ` (${data.script.length} dialogue lines)`;
+                    }
+                    showResult('generateScriptResult', true, message, data);
+                } else {
+                    showResult('generateScriptResult', false, data.error || 'Failed to generate script', data);
+                }
+            } catch (error) {
+                showResult('generateScriptResult', false, error.message);
+            } finally {
+                resetButton('generateScriptBtn', '<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>Generate Script');
+            }
+        }
+
+        // Batch Generate Scripts
+        async function batchGenerateScripts() {
+            const limit = document.getElementById('batchScriptLimit').value.trim();
+            
+            showLoading('batchScriptsBtn');
+            
+            try {
+                const apiUrl = getApiUrl();
+                let url = `${apiUrl}/batch-generate-scripts`;
+                if (limit) {
+                    url += `?limit=${limit}`;
+                }
+                
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    showResult('batchScriptsResult', true, data.message, data);
+                } else {
+                    showResult('batchScriptsResult', false, 'Batch processing failed', data);
+                }
+            } catch (error) {
+                showResult('batchScriptsResult', false, error.message);
+            } finally {
+                resetButton('batchScriptsBtn', 'Generate Scripts');
+            }
+        }
+
+        // Batch Generate Prompts
+        async function batchGeneratePrompts() {
+            const limit = document.getElementById('batchPromptsLimit').value.trim();
+            
+            showLoading('batchPromptsBtn');
+            
+            try {
+                const apiUrl = getApiUrl();
+                let url = `${apiUrl}/batch-generate-background-prompts`;
+                if (limit) {
+                    url += `?limit=${limit}`;
+                }
+                
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    showResult('batchPromptsResult', true, data.message, data);
+                } else {
+                    showResult('batchPromptsResult', false, 'Batch processing failed', data);
+                }
+            } catch (error) {
+                showResult('batchPromptsResult', false, error.message);
+            } finally {
+                resetButton('batchPromptsBtn', 'Generate Prompts');
+            }
+        }
+
+        // Batch Generate Images
+        async function batchGenerateImages() {
+            const limit = document.getElementById('batchImagesLimit').value.trim();
+            
+            showLoading('batchImagesBtn');
+            
+            try {
+                const apiUrl = getApiUrl();
+                let url = `${apiUrl}/batch-generate-background-images`;
+                if (limit) {
+                    url += `?limit=${limit}`;
+                }
+                
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    showResult('batchImagesResult', true, data.message, data);
+                } else {
+                    showResult('batchImagesResult', false, 'Batch processing failed', data);
+                }
+            } catch (error) {
+                showResult('batchImagesResult', false, error.message);
+            } finally {
+                resetButton('batchImagesBtn', 'Generate Images');
+            }
+        }
+
+        // Batch Generate Videos
+        async function batchGenerateVideos() {
+            const limit = document.getElementById('batchVideosLimit').value.trim();
+            
+            if (!confirm('⚠️ Video generation can take several minutes per video. Continue?')) {
+                return;
+            }
+            
+            showLoading('batchVideosBtn');
+            
+            try {
+                const apiUrl = getApiUrl();
+                let url = `${apiUrl}/batch-generate-videos`;
+                if (limit) {
+                    url += `?limit=${limit}`;
+                }
+                
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    showResult('batchVideosResult', true, data.message, data);
+                } else {
+                    showResult('batchVideosResult', false, 'Batch processing failed', data);
+                }
+            } catch (error) {
+                showResult('batchVideosResult', false, error.message);
+            } finally {
+                resetButton('batchVideosBtn', '⚠️ Generate Videos');
+            }
+        }
+
+        // Generate Videos (Single tab)
+        async function generateVideos() {
+            const limit = document.getElementById('singleVideoLimit').value.trim();
+            
+            if (!confirm('⚠️ Video generation can take several minutes. Continue?')) {
+                return;
+            }
+            
+            showLoading('generateVideosBtn');
+            
+            try {
+                const apiUrl = getApiUrl();
+                let url = `${apiUrl}/batch-generate-videos`;
+                if (limit) {
+                    url += `?limit=${limit}`;
+                }
+                
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    showResult('generateVideosResult', true, data.message, data);
+                } else {
+                    showResult('generateVideosResult', false, 'Video generation failed', data);
+                }
+            } catch (error) {
+                showResult('generateVideosResult', false, error.message);
+            } finally {
+                resetButton('generateVideosBtn', '<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>Generate Videos');
+            }
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            testConnection();
+        });
+    </script>
+</body>
+</html>
