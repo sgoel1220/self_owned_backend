@@ -27,7 +27,7 @@ from processors import (
     ProductionProcessor
 )
 from models import (
-    ProductionRequest, ProductionSummary, ProductionDetails, RetryStep, RetryResponse
+    ProductionRequest, ProductionSummary, ProductionDetails, RetryStep, RetryResponse, ProductionUpdateRequest
 )
 
 load_dotenv()
@@ -48,7 +48,10 @@ app = FastAPI(
 # CORS Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"]
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # ============================================================================
@@ -106,14 +109,38 @@ def get_production_details(production_id: int):
             video_generated_url=record.get("video_generated_url"),
             ai_script=record.get("ai_script"),
             background_image_prompt=record.get("background_image_prompt"),
-            background_image_url=record.get("background_image_url")
+            background_image_url=record.get("background_image_url"),
+            character_a=record.get("character_a"),
+            character_b=record.get("character_b"),
+            background_image_1=record.get("background_image_1"),
+            incident_image_1=record.get("incident_image_1"),
+            incident_image_2=record.get("incident_image_2"),
+            incident_image_3=record.get("incident_image_3"),
+            background_audio_url=record.get("background_audio_url")
         )
     except Exception as e:
         logger.error(f"Error in /productions/{production_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
+@app.get("/productions/{production_id}/status", tags=["Production"])
+def get_production_status_endpoint(production_id: int):
+    """Get the status of a single video production."""
+    try:
+        db = SupabaseManager()
+        record = db.get_production_by_id(production_id)
+        if not record:
+            raise HTTPException(status_code=404, detail="Production not found")
+        
+        status = get_production_status(record)
+        video_url = record.get("video_generated_url")
+        
+        return {"status": status, "video_url": video_url}
+    except Exception as e:
+        logger.error(f"Error in /productions/{production_id}/status: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
 @app.post("/productions", response_model=ProductionSummary, tags=["Production"])
-def create_production(request: ProductionRequest, background_tasks: BackgroundTasks):
+def create_production(request: ProductionRequest):
     """Create a new video production."""
     try:
         db = SupabaseManager()
@@ -128,7 +155,10 @@ def create_production(request: ProductionRequest, background_tasks: BackgroundTa
             except Exception as e:
                 logger.error(f"Error in background pipeline for record {record.get('id')}: {e}", exc_info=True)
 
-        background_tasks.add_task(run_pipeline)
+        run_pipeline()
+
+        # Re-fetch the record to get the updated status and video URL
+        record = db.get_production_by_id(record.get("id"))
 
         return ProductionSummary(
             id=record.get("id"),
@@ -145,15 +175,36 @@ def create_production(request: ProductionRequest, background_tasks: BackgroundTa
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 @app.post("/productions/{production_id}/retry/{step}", response_model=RetryResponse, tags=["Production"])
-def retry_production_step(production_id: int, step: RetryStep, background_tasks: BackgroundTasks):
+def retry_production_step(production_id: int, step: RetryStep):
     """Retry a specific step of the production pipeline."""
     
-    def run_retry():
-        processor = ProductionProcessor()
-        processor.retry_step(production_id, step)
+    processor = ProductionProcessor()
+    processor.retry_step(production_id, step)
 
-    background_tasks.add_task(run_retry)
-    return RetryResponse(success=True, message=f"Successfully queued retry for step: {step.value}")
+    return RetryResponse(success=True, message=f"Successfully retried step: {step.value}")
+
+@app.put("/productions/{production_id}", response_model=ProductionDetails, tags=["Production"])
+def update_production(production_id: int, request: ProductionUpdateRequest):
+    """Update a production record."""
+    try:
+        db = SupabaseManager()
+        updated_record = db.update_production(production_id, request.model_dump(exclude_unset=True))
+        if not updated_record:
+            raise HTTPException(status_code=404, detail="Production not found")
+        
+        return ProductionDetails(
+            id=updated_record.get("id"),
+            article_summary=updated_record.get("article_summary"),
+            status=get_production_status(updated_record),
+            created_at=updated_record.get("created_at"),
+            video_generated_url=updated_record.get("video_generated_url"),
+            ai_script=updated_record.get("ai_script"),
+            background_image_prompt=updated_record.get("background_image_prompt"),
+            background_image_url=updated_record.get("background_image_url")
+        )
+    except Exception as e:
+        logger.error(f"Error in /productions/{production_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 @app.post("/generate-script", response_model=ScriptResponse, tags=["Generation"], deprecated=True)
 def generate_script(request: ScriptRequest):
@@ -215,36 +266,34 @@ def batch_generate_background_prompts(limit: Optional[int] = None):
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 @app.post("/batch/generate-background-images", response_model=BackgroundImageBatchResponse, tags=["Batch Processing"])
-def batch_generate_background_images(background_tasks: BackgroundTasks, limit: Optional[int] = None):
-    """Process all rows ready for background image generation in the background"""
-    def run_batch():
-        try:
-            processor = BackgroundImageProcessor()
-            processor.process_batch(limit)
-        except Exception as e:
-            logger.error(f"Background image generation failed: {e}", exc_info=True)
-
-    background_tasks.add_task(run_batch)
-    return JSONResponse(
-        status_code=status.HTTP_202_ACCEPTED,
-        content={"message": "Batch background image generation started in the background"}
-    )
+def batch_generate_background_images(limit: Optional[int] = None):
+    """Process all rows ready for background image generation"""
+    try:
+        processor = BackgroundImageProcessor()
+        result = processor.process_batch(limit)
+        return BackgroundImageBatchResponse(
+            success=True,
+            message="Batch background image generation completed",
+            **result
+        )
+    except Exception as e:
+        logger.error(f"Error in /batch/generate-background-images: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 @app.post("/batch/generate-videos", response_model=VideoGenerationBatchResponse, tags=["Batch Processing"])
-def batch_generate_videos(background_tasks: BackgroundTasks, limit: Optional[int] = None):
-    """Process all rows ready for video generation in the background"""
-    def run_batch():
-        try:
-            processor = VideoProcessor()
-            processor.process_batch(limit)
-        except Exception as e:
-            logger.error(f"Background video generation failed: {e}", exc_info=True)
-
-    background_tasks.add_task(run_batch)
-    return JSONResponse(
-        status_code=status.HTTP_202_ACCEPTED,
-        content={"message": "Batch video generation started in the background"}
-    )
+def batch_generate_videos(limit: Optional[int] = None):
+    """Process all rows ready for video generation"""
+    try:
+        processor = VideoProcessor()
+        result = processor.process_batch(limit)
+        return VideoGenerationBatchResponse(
+            success=True,
+            message="Batch video generation completed",
+            **result
+        )
+    except Exception as e:
+        logger.error(f"Error in /batch/generate-videos: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 if __name__ == "__main__":
     import uvicorn

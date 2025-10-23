@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Production Details</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; background-color: #f0f2f5; color: #333; }
+        .container { max-width: 900px; margin: 20px auto; padding: 20px; background-color: #fff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1, h2 { color: #1c1e21; border-bottom: 1px solid #ddd; padding-bottom: 10px; }
+        .form-grid { display: grid; grid-template-columns: 150px 1fr; gap: 15px; align-items: start; margin-bottom: 15px; }
+        label { font-weight: bold; padding-top: 10px; }
+        input, textarea { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ddd; font-size: 14px; box-sizing: border-box; }
+        textarea { min-height: 100px; }
+        button { background-color: #1877f2; color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-size: 16px; transition: background-color 0.3s; }
+        button:hover { background-color: #166fe5; }
+        .retry-buttons button { font-size: 12px; padding: 5px 10px; margin-right: 5px; background-color: #f0ad4e; }
+        .retry-buttons button:hover { background-color: #ec9c2c; }
+        img, video { max-width: 100%; border-radius: 6px; }
+        pre { background-color: #f5f6f7; padding: 15px; border-radius: 6px; white-space: pre-wrap; word-wrap: break-word; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Production Details</h1>
+    <p><a href="index.html">Back to Dashboard</a></p>
+    <div id="rendered-content"></div>
+    <h2>Edit Details</h2>
+    <form id="details-form"></form>
+    
+    <h2>Pipeline Steps</h2>
+    <div class="retry-buttons">
+        <button onclick="retryStep('script')">Retry Script</button>
+        <button onclick="retryStep('background_prompt')">Retry Prompt</button>
+        <button onclick="retryStep('background_image')">Retry Image</button>
+        <button onclick="retryStep('video')">Retry Video</button>
+    </div>
+</div>
+
+<script>
+    const API_URL = 'http://127.0.0.1:5000';
+    let productionId;
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        productionId = urlParams.get('id');
+        if (productionId) {
+            fetchDetails();
+            setInterval(fetchDetails, 5000); // Poll for updates every 5 seconds
+        }
+
+        const detailsForm = document.getElementById('details-form');
+        detailsForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(detailsForm);
+            const data = {};
+            formData.forEach((value, key) => {
+                try {
+                    // Try to parse JSON fields back to objects
+                    data[key] = JSON.parse(value);
+                } catch (e) {
+                    data[key] = value;
+                }
+            });
+
+            try {
+                const response = await fetch(`${API_URL}/productions/${productionId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                if (response.ok) {
+                    alert('Production updated successfully!');
+                    fetchDetails();
+                } else {
+                    alert('Failed to update production.');
+                }
+            } catch (error) {
+                console.error('Error updating production:', error);
+                alert('An error occurred.');
+            }
+        });
+    });
+
+    async function fetchDetails() {
+        try {
+            const response = await fetch(`${API_URL}/productions/${productionId}`);
+            const details = await response.json();
+            
+            const form = document.getElementById('details-form');
+            const renderedContent = document.getElementById('rendered-content');
+
+            // If video is playing, don't update the DOM
+            const videoElement = renderedContent.querySelector('video');
+            if (videoElement && !videoElement.paused) {
+                return;
+            }
+
+            // Update rendered content
+            for (const key in details) {
+                const value = details[key];
+                let element = document.getElementById(`render_${key}`);
+                if (!element) {
+                    const renderDiv = document.createElement('div');
+                    renderDiv.classList.add('form-grid');
+                    renderDiv.id = `render_wrapper_${key}`;
+                    const renderLabel = document.createElement('label');
+                    renderLabel.textContent = key;
+                    const renderValue = document.createElement('div');
+                    renderValue.id = `render_${key}`;
+                    renderDiv.appendChild(renderLabel);
+                    renderDiv.appendChild(renderValue);
+                    renderedContent.appendChild(renderDiv);
+                    element = renderValue;
+                }
+
+                let newContent = '';
+                if (key.endsWith('_url') && value && typeof value === 'string') {
+                    if (value.match(/\.(jpeg|jpg|gif|png)$/)) {
+                        newContent = `<a href="${value}" target="_blank"><img src="${value}" alt="${key}"></a>`;
+                    } else if (value.match(/\.(mp4|webm)$/)) {
+                        newContent = `<video controls src="${value}"></video>`;
+                    } else {
+                        newContent = `<a href="${value}" target="_blank">${value}</a>`;
+                    }
+                } else if (typeof value === 'object' && value !== null) {
+                    newContent = `<pre>${JSON.stringify(value, null, 2)}</pre>`;
+                } else {
+                    newContent = value;
+                }
+
+                if (element.innerHTML !== newContent) {
+                    element.innerHTML = newContent;
+                }
+            }
+
+            // Update form
+            form.innerHTML = ''; // Clear the form before re-rendering
+
+            const fieldsToUpdate = [
+                'article_summary', 'ai_script', 'character_a', 'character_b',
+                'background_image_1', 'background_image_prompt', 'incident_image_1',
+                'incident_image_2', 'incident_image_3', 'background_image_url',
+                'video_generated_url', 'background_audio_url'
+            ];
+
+            fieldsToUpdate.forEach(key => {
+                const value = details[key];
+                const formDiv = document.createElement('div');
+                formDiv.classList.add('form-grid');
+
+                const label = document.createElement('label');
+                label.setAttribute('for', key);
+                label.textContent = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()); // Format label
+
+                let input;
+                if (key === 'article_summary' || key === 'ai_script' || key === 'background_image_prompt') {
+                    input = document.createElement('textarea');
+                    input.rows = (key === 'ai_script') ? 10 : 5;
+                } else {
+                    input = document.createElement('input');
+                    input.type = 'text';
+                }
+                
+                input.id = key;
+                input.name = key;
+                input.value = (typeof value === 'object' && value !== null) ? JSON.stringify(value, null, 2) : (value || '');
+
+                formDiv.appendChild(label);
+                formDiv.appendChild(input);
+                form.appendChild(formDiv);
+            });
+
+            // Add save button
+            const saveButton = document.createElement('button');
+            saveButton.type = 'submit';
+            saveButton.textContent = 'Save Changes';
+            saveButton.id = 'save-button';
+            form.appendChild(saveButton);
+
+        } catch (error) {
+            console.error('Error fetching details:', error);
+        }
+    }
+
+    function getFormValues(form) {
+        const values = {};
+        const formData = new FormData(form);
+        for (let [key, value] of formData.entries()) {
+            values[key] = value;
+        }
+        return values;
+    }
+
+    async function retryStep(step) {
+        if (!confirm(`Are you sure you want to retry the '${step}' step for production ${productionId}?`)) {
+            return;
+        }
+        try {
+            const response = await fetch(`${API_URL}/productions/${productionId}/retry/${step}`, {
+                method: 'POST'
+            });
+            if (response.ok) {
+                alert(`Successfully queued retry for step: ${step}`);
+                fetchDetails(); // Refresh details after queuing retry
+            } else {
+                alert(`Failed to retry step: ${step}`);
+            }
+        } catch (error) {
+            console.error(`Error retrying step ${step}:`, error);
+        }
+    }
+</script>
+
+</body>
+</html>

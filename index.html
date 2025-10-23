@@ -62,13 +62,7 @@
     </div>
 </div>
 
-<div id="details-modal" class="modal">
-    <div class="modal-content">
-        <span class="close">&times;</span>
-        <h2>Production Details</h2>
-        <pre id="details-content" style="white-space: pre-wrap; background-color: #f5f6f7; padding: 15px; border-radius: 6px;"></pre>
-    </div>
-</div>
+
 
 <script>
     const API_URL = 'http://127.0.0.1:5000';
@@ -101,16 +95,7 @@
             }
         });
 
-        const modal = document.getElementById('details-modal');
-        const closeBtn = document.querySelector('.modal .close');
-        closeBtn.onclick = () => {
-            modal.style.display = 'none';
-        }
-        window.onclick = (event) => {
-            if (event.target == modal) {
-                modal.style.display = 'none';
-            }
-        }
+        
     });
 
     async function fetchProductions() {
@@ -131,7 +116,7 @@
                     <td>${new Date(prod.created_at).toLocaleString()}</td>
                     <td>${prod.video_generated_url ? `<a href="${prod.video_generated_url}" target="_blank">View</a>` : 'N/A'}</td>
                     <td>
-                        <button onclick="showDetails(${prod.id})">Details</button>
+                        <a href="details.html?id=${prod.id}" target="_blank"><button>Details</button></a>
                         <div class="retry-buttons">
                             <button onclick="retryStep(${prod.id}, 'script')">Retry Script</button>
                             <button onclick="retryStep(${prod.id}, 'background_prompt')">Retry Prompt</button>
@@ -147,25 +132,12 @@
         }
     }
 
-    async function showDetails(productionId) {
-        try {
-            const response = await fetch(`${API_URL}/productions/${productionId}`);
-            const details = await response.json();
-            const detailsContent = document.getElementById('details-content');
-            detailsContent.textContent = JSON.stringify(details, null, 2);
-            const modal = document.getElementById('details-modal');
-            modal.style.display = 'block';
-        } catch (error) {
-            console.error('Error fetching details:', error);
-        }
-    }
-
     async function retryStep(productionId, step) {
         if (!confirm(`Are you sure you want to retry the '${step}' step for production ${productionId}?`)) {
             return;
         }
         try {
-            const response = await fetch(`${API_URL}/productions/${production_id}/retry/${step}`, {
+            const response = await fetch(`${API_URL}/productions/${productionId}/retry/${step}`, {
                 method: 'POST'
             });
             if (response.ok) {

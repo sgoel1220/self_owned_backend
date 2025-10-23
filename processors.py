@@ -3,6 +3,7 @@
 import logging
 import json
 from typing import Optional, Dict
+from datetime import datetime
 
 from database import SupabaseManager
 from ai_generators import ScriptGenerator, BackgroundImagePromptGenerator, BackgroundImageGenerator

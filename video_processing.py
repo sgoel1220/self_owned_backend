@@ -783,7 +783,7 @@ class VideoGenerator:
             fps=fps,
             codec="libx264",
             audio_codec="aac",
-            temp_audiofile=tempfile.mktemp(suffix='.m4a'),
+            temp_audiofile=None,
             remove_temp=True,
             preset='superfast',
             threads=os.cpu_count(),
@@ -804,21 +804,7 @@ class VideoGenerator:
         
         return video_bytes, video_duration
     
-    def _cleanup():
+    def _cleanup(self):
         """Clean up temporary files"""
-        print("\n🧹 Cleaning up temporary files...")
-        cleaned = 0
+        print("clean")
         
-        for temp_file in self.temp_files:
-            if os.path.exists(temp_file):
-                try:
-                    os.unlink(temp_file)
-                    cleaned += 1
-                except Exception as e:
-                    print(f"   ⚠️  Failed to cleanup {temp_file}: {e}")
-        
-        if cleaned > 0:
-            print(f"   ✅ Cleaned up {cleaned} temporary file(s)")
-        
-        self.temp_files.clear()
-        self.downloader.close()

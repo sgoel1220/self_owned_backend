@@ -406,3 +406,29 @@ class SupabaseManager:
         except Exception as e:
             logger.error(f"Failed to fetch production {record_id}: {e}")
             raise
+
+    def update_production(self, record_id: int, data: dict) -> Optional[dict]:
+        """
+        Update a production record.
+        
+        Args:
+            record_id: The ID of the record to update.
+            data: A dictionary of fields to update.
+        
+        Returns:
+            The updated record or None if not found.
+        """
+        try:
+            response = (
+                self.client.table(self.table)
+                .update(data)
+                .eq("id", record_id)
+                .execute()
+            )
+            if response.data:
+                logger.info(f"Successfully updated production {record_id}")
+                return response.data[0]
+            return None
+        except Exception as e:
+            logger.error(f"Failed to update production {record_id}: {e}")
+            raise

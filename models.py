@@ -149,3 +149,17 @@ class RetryStep(str, Enum):
 class RetryResponse(BaseModel):
     success: bool
     message: str
+
+class ProductionUpdateRequest(BaseModel):
+    article_summary: Optional[str] = None
+    ai_script: Optional[List[DialogueLine]] = None
+    background_image_prompt: Optional[str] = None
+    background_image_url: Optional[str] = None
+    video_generated_url: Optional[str] = None
+    character_a: Optional[str] = None
+    character_b: Optional[str] = None
+    incident_image_1: Optional[str] = None
+    incident_image_2: Optional[str] = None
+    incident_image_3: Optional[str] = None
+    background_audio_url: Optional[str] = None
+    background_image_1: Optional[str] = None
