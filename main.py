@@ -27,7 +27,7 @@ from fastapi import FastAPI, HTTPException, status, BackgroundTasks
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 from io import BytesIO
-
+from fastapi.middleware.cors import CORSMiddleware
 from moviepy.video.VideoClip import ImageClip
 from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
 from moviepy.audio.io.AudioFileClip import AudioFileClip
@@ -2152,6 +2152,14 @@ app = FastAPI(
     version="4.0.0",
     docs_url="/apidocs",
     redoc_url="/redoc"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"]
 )
 
 processor = ScriptProcessor()
