@@ -1,0 +1,6 @@
+Add a zoom effect on characters
+Add a tilt effect on the background image
+
+Add multiple characters
+Add multiple backgrounds
+
