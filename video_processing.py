@@ -385,86 +385,93 @@ class ImageProcessor:
             return image
     
     @staticmethod
+    def create_gradient_background(
+        size: Tuple[int, int],
+        start_color: Tuple[int, int, int, int],
+        end_color: Tuple[int, int, int, int]
+    ) -> Image.Image:
+        """Create a vertical gradient background"""
+        base = Image.new("RGBA", size, start_color)
+        top = Image.new("RGBA", size, end_color)
+        mask = Image.new("L", size)
+        mask_data = []
+        for y in range(size[1]):
+            mask_data.extend([int(255 * (y / size[1]))] * size[0])
+        mask.putdata(mask_data)
+        base.paste(top, (0, 0), mask)
+        return base
+
+    @staticmethod
     def generate_text_image(
         text: str,
         font: ImageFont.FreeTypeFont,
         size: Tuple[int, int] = (720, 200),
-        text_color: str = 'white',
-        bg_color: Tuple[int, int, int, int] = (0, 0, 0, 180)
+        text_color: str = '#FFFFFF',
+        start_color: Tuple[int, int, int, int] = (25, 25, 112, 180),
+        end_color: Tuple[int, int, int, int] = (100, 149, 237, 180)
     ) -> Image.Image:
-        """Generate text image with background and stroke effect"""
+        """Generate text image with a clean, bold look and a subtle stroke."""
         img = Image.new('RGBA', size, (0, 0, 0, 0))
         d = ImageDraw.Draw(img)
-        
-        # Word wrapping
+
+        # --- Word Wrapping ---
         lines = []
         words = text.split()
         if not words:
             return img
-        
+
         line = ""
+        # A bit of padding on the sides
+        max_width = size[0] - 80
         for word in words:
-            test_line = line + word + " " if line else word + " "
-            if d.textlength(test_line.strip(), font=font) <= size[0] - 60:
+            test_line = f"{line}{word} "
+            if d.textlength(test_line.strip(), font=font) <= max_width:
                 line = test_line
             else:
                 if line:
                     lines.append(line.strip())
-                    line = word + " "
-                else:
-                    lines.append(word)
-                    line = ""
-        
+                line = f"{word} "
         if line:
             lines.append(line.strip())
-        
-        # Calculate dimensions
+
+        # --- Text Rendering ---
         try:
+            # Attempt to get size from a loaded font object
             font_size = font.size
-        except:
-            font_size = 36  # Default if font.size not available
-        
-        line_height = font_size + 15
+        except AttributeError:
+            # Fallback for default fonts
+            font_size = 40
+
+        line_height = font_size + 10  # Tighter line spacing
         total_text_height = line_height * len(lines)
-        max_line_width = max(d.textlength(line, font=font) for line in lines) if lines else 0
         
-        # Background dimensions
-        padding = 20
-        bg_width = max_line_width + (padding * 2)
-        bg_height = total_text_height + (padding * 2)
-        bg_x = (size[0] - bg_width) // 2
-        bg_y = (size[1] - bg_height) // 2
-        
-        # Draw rounded rectangle background
-        background = Image.new('RGBA', size, (0, 0, 0, 0))
-        bg_draw = ImageDraw.Draw(background)
-        bg_draw.rounded_rectangle(
-            [bg_x, bg_y, bg_x + bg_width, bg_y + bg_height],
-            radius=10,
-            fill=bg_color
-        )
-        
-        img = Image.alpha_composite(img, background)
-        d = ImageDraw.Draw(img)
-        
-        y_start = bg_y + padding
-        
-        # Draw text with stroke
-        stroke_width = 2
+        # Center the text block vertically
+        y_start = (size[1] - total_text_height) // 2
+
+        # --- Draw each line with a stroke ---
+        stroke_width = 3  # A slightly thinner stroke
+        stroke_fill = 'black'
+
         for i, line in enumerate(lines):
             line_width = d.textlength(line, font=font)
             x_text = (size[0] - line_width) // 2
             y_text = y_start + (i * line_height)
+
+            # Draw stroke
+            d.text((x_text - stroke_width, y_text), line, font=font, fill=stroke_fill)
+            d.text((x_text + stroke_width, y_text), line, font=font, fill=stroke_fill)
+            d.text((x_text, y_text - stroke_width), line, font=font, fill=stroke_fill)
+            d.text((x_text, y_text + stroke_width), line, font=font, fill=stroke_fill)
             
-            # Stroke effect
-            for dx in range(-stroke_width, stroke_width + 1):
-                for dy in range(-stroke_width, stroke_width + 1):
-                    if dx != 0 or dy != 0:
-                        d.text((x_text + dx, y_text + dy), line, font=font, fill='black')
-            
-            # Main text
+            # Diagonal strokes for better coverage
+            d.text((x_text - stroke_width, y_text - stroke_width), line, font=font, fill=stroke_fill)
+            d.text((x_text + stroke_width, y_text - stroke_width), line, font=font, fill=stroke_fill)
+            d.text((x_text - stroke_width, y_text + stroke_width), line, font=font, fill=stroke_fill)
+            d.text((x_text + stroke_width, y_text + stroke_width), line, font=font, fill=stroke_fill)
+
+            # Draw main text
             d.text((x_text, y_text), line, font=font, fill=text_color)
-        
+
         return img
 
 class VideoGenerator:
@@ -499,7 +506,7 @@ class VideoGenerator:
             canvas_height = 1280
             fps = 24
             scene_duration = 2.0
-            font_size = 36
+            font_size = 50
             
             # Get required fields
             ai_script = row.get('ai_script')

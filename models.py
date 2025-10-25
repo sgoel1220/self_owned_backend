@@ -136,6 +136,13 @@ class ProductionDetails(ProductionSummary):
     ai_script: Optional[List[DialogueLine]] = None
     background_image_prompt: Optional[str] = None
     background_image_url: Optional[str] = None
+    character_a: Optional[str] = None
+    character_b: Optional[str] = None
+    background_image_1: Optional[str] = None
+    incident_image_1: Optional[str] = None
+    incident_image_2: Optional[str] = None
+    incident_image_3: Optional[str] = None
+    background_audio_url: Optional[str] = None
 
 class ProductionRequest(BaseModel):
     story: str = Field(..., min_length=10, description="The story to generate a video from.")

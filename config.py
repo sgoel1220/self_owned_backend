@@ -26,7 +26,7 @@ class Config(BaseSettings):
     TIMEOUT_SECONDS: int = 60
     
     # Video generation defaults
-    DEFAULT_FONT_URL: str = "https://pksxiitjqxyyhnyzssei.supabase.co/storage/v1/object/public/youtube-automation/font/Inter-VariableFont.ttf"
+    DEFAULT_FONT_URL: str = "https://pksxiitjqxyyhnyzssei.supabase.co/storage/v1/object/public/youtube-automation/font/Anton-Regular.ttf"
     DEFAULT_MASK_URL: str = "https://pksxiitjqxyyhnyzssei.supabase.co/storage/v1/object/public/youtube-automation/mask/mask.jpg"
     DEFAULT_CHARACTER_1_URL: str = "https://pksxiitjqxyyhnyzssei.supabase.co/storage/v1/object/public/youtube-automation/characters/Tradgirl.png"
     DEFAULT_CHARACTER_2_URL: str = "https://pksxiitjqxyyhnyzssei.supabase.co/storage/v1/object/public/youtube-automation/characters/Chad.png"

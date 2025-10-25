@@ -200,7 +200,14 @@ def update_production(production_id: int, request: ProductionUpdateRequest):
             video_generated_url=updated_record.get("video_generated_url"),
             ai_script=updated_record.get("ai_script"),
             background_image_prompt=updated_record.get("background_image_prompt"),
-            background_image_url=updated_record.get("background_image_url")
+            background_image_url=updated_record.get("background_image_url"),
+            character_a=updated_record.get("character_a"),
+            character_b=updated_record.get("character_b"),
+            background_image_1=updated_record.get("background_image_1"),
+            incident_image_1=updated_record.get("incident_image_1"),
+            incident_image_2=updated_record.get("incident_image_2"),
+            incident_image_3=updated_record.get("incident_image_3"),
+            background_audio_url=updated_record.get("background_audio_url")
         )
     except Exception as e:
         logger.error(f"Error in /productions/{production_id}: {e}", exc_info=True)
